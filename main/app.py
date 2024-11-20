@@ -115,7 +115,7 @@ def identificar_acordes():
             return jsonify({'error': 'Nenhuma URL fornecida'}), 400
         
         try:
-            response = requests.post('http://54.152.125.163:8080/identificar-acordes', json={'urls': urls})
+            response = requests.post('http://34.227.40.65:8080/identificar-acordes', json={'urls': urls})
             acordes_resultado = response.json()
 
             salvar_dados(token, "acordes_identificados", acordes_resultado)
@@ -205,7 +205,7 @@ def upload():
 
         try:
             response = requests.post(
-                'http://50.19.1.174:8080/upload', 
+                'http://52.55.109.204:8080/upload', 
                 json=data, 
                 headers={'Content-Type': 'application/json'}
             )
