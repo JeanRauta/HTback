@@ -14,7 +14,6 @@ CORS(app)
 
 
 
-
 S3_BUCKET = 'htracks'
 
 def extrair_nome_faixa(nome_arquivo):

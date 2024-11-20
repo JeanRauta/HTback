@@ -83,7 +83,7 @@ def separar_faixas():
 
         try:
             if audio_file:
-                response = requests.post('http://4.248.11.122:8080/separar-faixas', files={'file': audio_file}, data={'model': model})
+                response = requests.post('http://localhost:5001/separar-faixas', files={'file': audio_file}, data={'model': model})
             elif url:
                 response = requests.post('http://4.248.11.122:8080/separar-faixas', data={'url': url, 'model': model})
             else:
@@ -128,67 +128,69 @@ def identificar_acordes():
 
 @app.route('/api/converter-midi', methods=['POST'])
 def converter_midi():
-    token = request.headers.get('Authorization').split(" ")[1]
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({"error": "Token não fornecido."}), 401
 
-    if sessions_collection.find_one({"token_sessao": token}):
-        data = request.get_json()
-        audio_url = data.get('audio_url')
+    token = token.split(" ")[1]
 
-        if not audio_url:
-            return jsonify({'error': 'Nenhuma URL de áudio fornecida'}), 400
-
-        try:
-            response = requests.post('http://localhost:5003/convert_to_midi', json={'audio_url': audio_url})
-            resultado = response.json()
-
-            midi_file_link = resultado.get('midi_file_link')
-            abc_file_link = resultado.get('abc_file_link')
-            track_type = resultado.get('track_name') 
-
-            if not midi_file_link or not abc_file_link:
-                return jsonify({'error': 'Resposta incompleta do serviço de conversão'}), 500
-
-            session_data = sessions_collection.find_one({"token_sessao": token})
-
-            if session_data:
-                if "dados" not in session_data:
-                    session_data["dados"] = {}
-
-                if "midi_converted" not in session_data["dados"]:
-                    session_data["dados"]["midi_converted"] = {}
-
-                session_data["dados"]["midi_converted"][track_type] = {
-                    "midi_file_link": midi_file_link,
-                    "abc_file_link": abc_file_link
-                }
-
-                sessions_collection.update_one(
-                    {"token_sessao": token},
-                    {"$set": {"dados": session_data["dados"]}}  
-                )
-            else:
-                sessions_collection.insert_one({
-                    "token_sessao": token,
-                    "dados": {
-                        "midi_converted": {
-                            track_type: {
-                                "midi_file_link": midi_file_link,
-                                "abc_file_link": abc_file_link
-                            }
-                        }
-                    }
-                })
-
-            return jsonify({
-                track_type: {
-                    "midi_file_link": midi_file_link,
-                    "abc_file_link": abc_file_link
-                }
-            })
-        except Exception as e:
-            return jsonify({"error": f"Ocorreu um erro: {str(e)}"}), 500
-    else:
+    session_data = sessions_collection.find_one({"token_sessao": token})
+    if not session_data:
         return jsonify({"error": "Token inválido ou expirado."}), 401
+
+    data = request.get_json()
+    faixa = data.get('faixa')  
+
+    if not faixa:
+        return jsonify({'error': 'Nome da faixa não fornecido.'}), 400
+
+    faixa_data = session_data.get('dados', {}).get('faixas_separadas', {}).get('audio_tags', [])
+    faixa_url = None
+    for tag in faixa_data:
+        if 'name' in tag and tag['name'] == faixa: 
+            faixa_url = tag.get('src')  
+            break
+
+    if not faixa_url:
+        return jsonify({'error': f'URL para a faixa "{faixa}" não encontrada.'}), 404
+
+    try:
+        response = requests.post('http://localhost:5003/convert_to_midi', json={'audio_url': faixa_url})
+        if response.status_code != 200:
+            return jsonify({'error': 'Erro na resposta da API de conversão.'}), 500
+        
+        resultado = response.json()
+
+        midi_file_link = resultado.get('midi_file_link')
+        abc_file_link = resultado.get('abc_file_link')
+        track_type = resultado.get('track_name')
+
+        if not midi_file_link or not abc_file_link:
+            return jsonify({'error': 'Resposta incompleta do serviço de conversão.'}), 500
+
+        if "midi_converted" not in session_data["dados"]:
+            session_data["dados"]["midi_converted"] = {}
+
+        session_data["dados"]["midi_converted"][track_type] = {
+            "midi_file_link": midi_file_link,
+            "abc_file_link": abc_file_link
+        }
+
+        sessions_collection.update_one(
+            {"token_sessao": token},
+            {"$set": {"dados": session_data["dados"]}}
+        )
+
+        return jsonify({
+            track_type: {
+                "midi_file_link": midi_file_link,
+                "abc_file_link": abc_file_link
+            }
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Ocorreu um erro ao se comunicar com a API de conversão: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Ocorreu um erro: {str(e)}"}), 500
 
 
 @app.route('/api/upload', methods=['POST'])
