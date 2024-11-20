@@ -83,7 +83,7 @@ def separar_faixas():
 
         try:
             if audio_file:
-                response = requests.post('http://localhost:5001/separar-faixas', files={'file': audio_file}, data={'model': model})
+                response = requests.post('http://4.248.11.122:8080/separar-faixas', files={'file': audio_file}, data={'model': model})
             elif url:
                 response = requests.post('http://4.248.11.122:8080/separar-faixas', data={'url': url, 'model': model})
             else:
@@ -155,7 +155,7 @@ def converter_midi():
         return jsonify({'error': f'URL para a faixa "{faixa}" não encontrada.'}), 404
 
     try:
-        response = requests.post('http://localhost:5003/convert_to_midi', json={'audio_url': faixa_url})
+        response = requests.post('http://52.179.159.193:8080/convert_to_midi', json={'audio_url': faixa_url})
         if response.status_code != 200:
             return jsonify({'error': 'Erro na resposta da API de conversão.'}), 500
         
